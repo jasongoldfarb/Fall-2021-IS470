@@ -1,0 +1,110 @@
+---
+title: "Data Exploration and Visualization Lab"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#### Course Number: IS-470
+#### Course Title: Business Intelligence and Big Data
+#### Student Name: ADD
+
+# Introduction
+
+The purpose of this lab is to learn the basic of data exploration in R using a few popular packages. The exercise is not meant to be difficult...so take a breath. We are hoping you will have fun and learn something new along the way.
+If you get stuck, the examples and questions used within the exercises come from the following articles. Please try it on your own first though and ask help from your classmates.
+
+https://www.pluralsight.com/guides/exploring-data-set-r
+
+https://cran.r-project.org/web/packages/DataExplorer/vignettes/dataexplorer-intro.html
+
+https://r4ds.had.co.nz/exploratory-data-analysis.html
+
+https://rpubs.com/LexyBrooks/Flight-Explore
+
+To complete lab successfully complete the following items listed below:
+
+- Run the code on a data set of your choosing.
+- Run the code example code using your data.
+- Answer all the questions about the exploratory data analysis you completed on your data.
+
+# Load Packages and Data
+
+The following libraries will be used within the analysis. Remember to install the packages using the `Packages` tab on the right hand side before loading the packages. Also, load in one of the other flight data sets (`airlines`, `airports`, `planes`, `weather`) within this `r` block. 
+
+```{r include=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(nycflights13)
+library(DataExplorer)
+library(skimr)
+
+#Using the flights data from the nycflights13 package
+flights_data = nycflights13::flights
+```
+
+# Data Exploration
+Lets take a look at your data and see what we can learn. To get a first glance at my data I decided upon looking at the shape, first few rows, and some summary statistics for the flights data. Used the code that I provided to see what you can find out about your data.
+
+#### Questions
+
+##### How many rows and columns are there in your data set?
+
+**Answer:** 
+
+```{r}
+print(dim(flights_data))
+```
+
+##### At glance, what types of columns are available in your data set? For example, one observation for the `flights` data is that most of the columns in the data are numeric with a few categorical columns (i.e., origin, dest).
+
+**Answer:** 
+
+```{r}
+head(flights_data, 5)
+```
+
+##### What additional information did you learn from the summary statistics table? For example, one observation for the `flights` data is that there are few columns that have missing observations and they mostly have to do with features related to flight delay information. 
+
+**Answer:** 
+
+```{r}
+summary(flights_data)
+```
+
+# Data Visualization
+Now that we have a better understanding of the structure of the data and type of data we are working with, let us create a few data visualizations to see if we can learn some more information about our data. First run your data through one of the Exploratory Data Analysis tools loaded: `skimr` or `DataExplorer`. For the example I used `skimr`; however, please feel free to `DataExplorer` or both if you would like to have some additional experience running both tools. FYI, `DataExplorer` does create an html file when you run it and does not create an output within script.
+
+#### Questions
+
+##### Discuss the shape of the distribution for a few of your numeric features? For example, `dep_delay` appers to be positively skewed. 
+**Answer:** 
+
+```{r}
+flights %>% skimr::skim()
+
+# Set up for DataExplorer
+#config <- configure_report(
+#  add_plot_str = FALSE,
+#  add_plot_qq = FALSE,
+#  add_plot_prcomp = FALSE,
+#  add_plot_boxplot = FALSE,
+#  add_plot_scatterplot = FALSE,
+#  global_ggtheme = quote(theme_minimal(base_size = 14))
+#)
+#create_report(flights, config = config)
+```
+
+##### The distribution plots are some times hard to read when they presented as a summary. Dig into two columns of interest and discuss what else you learned from the additional plot. Explore the charts and graphs discussed in chapter two of Sharda or chapter 7 of Lander. For example, my assertion that the delay variables for arrival time and departure time do appear to be positively skewed. 
+
+**Answer:** 
+
+```{r}
+#Create 2 histograms showing arr_delay and dep_delay across 2013 flights
+par(mfrow=c(1,2))
+hist(flights$arr_delay, main = "Arrival Time Delays")
+hist(flights$dep_delay, main = "Departure Time Delays")
+```
