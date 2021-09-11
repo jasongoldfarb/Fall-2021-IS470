@@ -1,0 +1,240 @@
+---
+title: "Predictive Analytics Binary Target Model Lab"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#### Course Number: IS-470
+#### Course Title: Business Intelligence and Big Data
+#### Student Name: ADD
+
+# Introduction
+
+Your orange juice company, OJ-R-US, just bought Citrus Hill and wants to continue selling orange juice to their newly acquired customer base. The purpose of this lab is two fold:
+
+- Explore the `OJ` data.
+- Identify predictors that are predictive in nature.
+- Develop and compare the two binary target models.
+
+To complete the lab successfully, run the code, edit the code to run your own analysis when prompted, and answer all the questions about the predictive analysis completed within the notebook.
+
+# Load Packages and Examine Data
+
+The following libraries will be used within the analysis. Remember to install the packages using the `Packages` tab on the right hand side before loading the packages.
+
+```{r include=FALSE}
+library(caret)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RANN)
+library(ISLR)
+library(skimr)
+library(fastDummies)
+library(boot)
+library(elasticnet)
+```
+
+# Data Exploration
+Lets take a look at your data and see what we can learn. To get a first glance at my data I decided upon looking at the shape, first few rows, and some summary statistics for the orange juice sales data. Used the code that I provided to see what you can find out about your data.
+
+#### Questions
+
+##### How many rows and columns are there in your data set?
+
+**Answer:** 
+
+```{r}
+print(dim(OJ))
+```
+
+##### At glance, what types of columns are available in your data set? 
+
+**Answer:** 
+
+```{r}
+head(OJ, 5)
+```
+
+##### What additional information did you learn from the summary statistics table below about your data? 
+
+**Answer:** 
+
+```{r}
+OJ %>% skimr::skim()
+```
+
+# Data Preperation
+
+Before we can build our binary target model, we need to perform some basic data pre-processing:
+
+- Create dummy indicators for categorical data
+- Create train and test data sets
+
+We can see that a few extra columns were added to our data set after creating the dummy indicators. 
+
+```{r}
+# Create the training and test data sets
+set.seed(100)
+
+# Create dummy indicators 
+Data_with_dummies = dummy_cols(
+  OJ, select_columns = c('STORE', 'StoreID', 'Store7'),
+  remove_selected_columns = TRUE)
+
+# Step 1: Get row numbers for the training data
+trainRowNumbers <- createDataPartition(Data_with_dummies$Purchase, p=0.8, list=FALSE)
+
+# Step 2: Create the training  data set
+trainData <- Data_with_dummies[trainRowNumbers,]
+
+# Step 3: Create the test data set
+testData <- Data_with_dummies[-trainRowNumbers,]
+
+# Step 4: Examine the shape of the train data set
+print(dim(trainData))
+```
+
+##### What happens to the categorical columns when they are dummy coded? Why is this useful? 
+
+**Answer:** 
+
+# Varaible Selection
+
+The next step in the process is determine if we have any highly correlated or less predictive features in our data. There appear to be some highly correlated features in our data set. Using the variable importance values from ML model fit below we choose the following features to represent the set of correlated features:
+
+- Store7_No: StoreID_7, STORE_0
+- PriceDiff: SalePriceMM, DiscMM
+
+Feature selection using univariate filters was performed using the `caret` package. There are many different feature selection methods provided within the `caret` package (https://topepo.github.io/caret/feature-selection-overview.html).
+
+```{r, message=FALSE}
+# prepare training scheme
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+# train the model
+model <- train(Purchase~., data=trainData, method="lvq", preProcess="scale", trControl=control)
+# estimate variable importance
+importance <- varImp(model, scale=FALSE)
+```
+
+```{r}
+# plot importance
+importance_df = importance$importance
+importance_df = importance_df[order(-importance_df$CH),]
+# row.names(importance_df)
+plot(importance)
+```
+
+```{r}
+# calculate correlation matrix
+x_num = subset(trainData, select = -c(Purchase) )
+correlationMatrix <- cor(as.matrix(x_num))
+# find attributes that are highly corrected
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.85)
+print(highlyCorrelated)
+# print indexes of highly correlated attributes
+print(names(x_num)[highlyCorrelated])
+x_num_high_corr = subset(trainData, select = c(names(x_num)[highlyCorrelated]) )
+correlationMatrix <- cor(as.matrix(x_num_high_corr))
+print(correlationMatrix)
+# dropping least important correlated numeric columns (correlated canidates: PriceDiff and STORE_0)
+trainDataReduce = subset(trainData, select = -c(DiscMM, StoreID_7, STORE_0, SalePriceMM) )
+testDataReduce = subset(testData, select = -c(DiscMM, StoreID_7, STORE_0, SalePriceMM) )
+
+# Store7_No: StoreID_7, STORE_0
+# PriceDiff: SalePriceMM, DiscMM
+```
+
+```{r}
+x = subset(trainDataReduce, select = -c(Purchase) )
+y = trainDataReduce$Purchase
+filterCtrl <- sbfControl(functions = rfSBF, method = "repeatedcv", repeats = 5)
+set.seed(10)
+rfWithFilter <- sbf(x, y, sbfControl = filterCtrl)
+```
+**Feature Selection Output**
+
+Selection By Filter
+
+Outer resampling method: Cross-Validated (10 fold, repeated 5 times) 
+
+Resampling performance:
+
+
+Using the training set, 19 variables were selected:
+   WeekofPurchase, PriceMM, DiscCH, SpecialCH, SpecialMM...
+
+During resampling, the top 5 selected variables (out of a possible 21):
+   DiscCH (100%), ListPriceDiff (100%), LoyalCH (100%), PctDiscCH (100%), PctDiscMM (100%)
+
+On average, 19.6 variables were selected (min = 19, max = 21)
+
+##### Why do we remove highly correlated features from the training data set?
+
+**Answer:** 
+
+##### What features were kept after we performed feature selection? Does it make intutive sense that these features were retained in the training data set to build our model? If so, provide an example or two?
+
+**Answer:** 
+
+# Model Build and Evaluation
+
+Lets build our model that we have our final set of features. We are going to fit a Gradient Boosted Machine model using the grid search specified within our code. There are many different machine learning algorithms and methods to complete hyper-parameter tuning using the `caret` package. This example just provides a basic example on how this can be accomplish. If you have some free time, please feel free to explore other models and see if you can build a better model. :)
+
+#### Looking at the model evaluation metrics provided below, does our model rank order the training data well?
+
+**Answer:** 
+
+#### Looking at the model code and evaluation metrics for the train and test data sets, what recommendations would you make to the developer to improve the model?
+
+**Answer:** 
+
+```{r}
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 5,
+                           ## repeated ten times
+                           repeats = 5)
+
+gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9), 
+                        n.trees = (1:30)*50, 
+                        shrinkage = 0.1,
+                        n.minobsinnode = 20)
+
+set.seed(13)
+gbmFit1 <- train(Purchase ~ DiscCH + ListPriceDiff + LoyalCH + PctDiscCH + PriceDiff, 
+                 data = trainDataReduce, 
+                 method = "gbm",
+                 metric = "Accuracy",
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE,
+                 tuneGrid = gbmGrid)
+
+trainPerformanceData <- data.frame(Class = trainDataReduce$Purchase)
+trainPerformanceData$prob = predict(gbmFit1, trainDataReduce, type = "prob")[,"CH"]
+trainPerformanceData$pred <- factor(ifelse(trainPerformanceData$prob >= .5, "CH", "MM"))
+trainPerformanceData$obs <- trainDataReduce$Purchase
+
+testPerformanceData <- data.frame(Class = testDataReduce$Purchase)
+testPerformanceData$prob = predict(gbmFit1, testDataReduce, type = "prob")[,"CH"]
+testPerformanceData$pred <- factor(ifelse(testPerformanceData$prob >= .5, "CH", "MM"))
+testPerformanceData$obs <- testDataReduce$Purchase
+```
+### Train Data Set
+```{r}
+print(confusionMatrix(data = trainPerformanceData$pred, reference = trainPerformanceData$obs, mode = "prec_recall"))
+```
+### Train Data Set
+```{r}
+print(confusionMatrix(data = testPerformanceData$pred, reference = testPerformanceData$obs, mode = "prec_recall"))
+```
+
+
+
+
