@@ -1,0 +1,129 @@
+---
+title: "Text Analysis Lab"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#### Course Number: IS-470
+#### Course Title: Business Intelligence and Big Data
+#### Student Name: ADD
+
+https://www.kaggle.com/crowdflower/twitter-airline-sentiment
+https://rpubs.com/iyadaqel/176952
+
+# Introduction
+
+Your bose has charged you in digging into the flight `tweets` data and determine the main reasons why certian customers have a negative feelings about flying. The purpose of this lab is two fold:
+
+- Explore the `tweets` data.
+- Identify if there are any difference in the setiment by airline carier.
+- Determine what are some main reason why customers may have negative feelings about their flying experiences.
+
+To complete the lab successfully, run the code and answer all the questions about the predictive analysis completed within the notebook.
+
+# Load Packages and Examine Data
+
+The following libraries will be used within the analysis. Remember to install the packages using the `Packages` tab on the right hand side before loading the packages.
+
+# Load Packages and Data
+```{r include=FALSE}
+library(dplyr)
+library(ggplot2)
+library("wordcloud")
+library(reshape2)
+library(plyr)
+library(tm)
+
+# Set the working directory to location where you downloaded the tweets data.
+setwd("/Users/jasongoldfarb/Downloads")
+tweets = read.csv('./Tweets.csv')
+names(tweets)
+```
+
+# Data Exploration
+Lets take a look at your data and see what we can learn. To get a first glance at my data I decided upon looking at the shape, first few rows, and some summary statistics for the orange juice sales data. Use the code that I provided to see what you can find out about your data.
+
+#### Questions
+
+##### How many rows and columns are there in your data set?
+
+**Answer:** 
+
+```{r}
+print(dim(tweets))
+```
+
+##### At glance, what types of columns are available in your data set? 
+
+**Answer:** 
+
+```{r}
+head(tweets, 5)
+```
+
+#### Questions
+
+##### What additional information did you learn from the summary statistics table below about your data? 
+
+**Answer:** 
+
+```{r}
+tweets$date <-  as.Date(tweets$tweet_created)
+tweets %>% skimr::skim()
+```
+
+# Data Visualizations and Exploration
+Now that we have a better understanding of the structure of the data and type of data we are working with, let us create a few data visualizations and examine the data by airlines to see if we can learn some more information about our data.
+
+##### Looking at the distribtuion for airline sentiment, does anything jump out at you when examining the sentiment in general and then by airline cariers?
+
+**Answer:** 
+
+
+```{r}
+posNeg = tweets %>% group_by(airline_sentiment) %>% dplyr::summarise(count = n())
+posNeg
+```
+
+```{r}
+ggplot(data=posNeg , aes(x="" , y=count , fill=airline_sentiment))+geom_bar(width=1,stat="identity")+
+geom_text(aes(y = count/3 + c(0, cumsum(count)[-length(count)]), 
+            label =count), size=4)+coord_polar("y") + scale_fill_manual(values=c("#ffbebe", "#fff9be", "#d4ffbe"))
+```
+
+```{r}
+ggplot(tweets, aes(airline, fill=airline_sentiment)) + geom_bar()
+```
+##### Digging into the negative tweets in the table and word cloud below, what appear to be the main things past passengers have been upset by when flying?
+
+**Answer:** 
+
+##### When building predictive models, binary indicators are often created from text files. Looking at the table and word cloud below, what would be some limitations in doing so with our data sets? (strech questions...)
+
+**Answer:** 
+
+
+```{r warning=FALSE}
+docs2 <- Corpus(VectorSource(negativeTweets$text))
+docs2 <- tm_map(docs2, content_transformer(tolower))
+docs2 <- tm_map(docs2, removeNumbers)
+docs2 <- tm_map(docs2, removeWords, stopwords("english"))
+docs2 <- tm_map(docs2, removeWords, c("usairways" ,"united", "flight" , "americanair" , "jetblue" , "southwestair")) 
+docs2 <- tm_map(docs2, removePunctuation)
+docs2 <- tm_map(docs2, stripWhitespace)
+
+dtm2 <- TermDocumentMatrix(docs2)
+m2 <- as.matrix(dtm2)
+v2 <- sort(rowSums(m2),decreasing=TRUE)
+d2 <- data.frame(word = names(v2),freq=v2)
+head(d2, 10)
+```
+
+```{r warning=FALSE}
+wordcloud(words = d2$word, freq = d2$freq, min.freq = 1,
+          max.words=50, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+```
