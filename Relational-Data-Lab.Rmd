@@ -1,0 +1,170 @@
+---
+title: "Relational Data Lab"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+#### Course Number: IS-470
+#### Course Title: Business Intelligence and Big Data
+#### Student Name: ADD
+
+# Introduction
+
+The purpose of this lab is to learn some basic skills with working relational data sets in `R`. The exercise questions on the material discussed Chapter 13 (Relational data) in the R for Data Science book, which can be accessed using the following link:
+
+https://r4ds.had.co.nz/relational-data.html
+
+To complete the lab successfully, complete the following items listed below:
+
+- Read Chapter 13 (Relational data) in the R for Data Science book.
+- Use the example code within the notebook and R for Data Science book to run your analysis.
+- Answer all the questions contained within the notebook.
+
+# Load Packages and Data
+
+The following libraries will be used within your analysis. Remember to install the packages using the `Packages` tab on the right hand side before loading the packages. Remove the comment mark `#` to install the `datamodelr` package if you have not installed it before on your computer. Also, listed are few data sets you can use for your lab work. We are going to work with the `Lahman` baseball data sets to explore working with relational data sets in `R`. Listed below is a link to the package information:
+
+https://cran.r-project.org/web/packages/Lahman/Lahman.pdf
+
+```{r warning=FALSE}
+# remotes::install_github("bergant/datamodelr")
+library("DiagrammeR")
+library("tidyverse")
+library("dplyr")
+library("nycflights13")
+library("viridis")
+library("datamodelr")
+library("Lahman")
+library("ggplot2")
+```
+
+# Data Exploration
+
+Lets take a look at a few of the `Lahman` baseball data sets and see what we can learn by: 
+
+- Looking at the shape of your data 
+- Taking a glance at the first five rows
+
+Use the code that I provided to see what you can find out about your data.
+
+#### Questions
+
+##### How many rows and columns are there in each of the data sets?
+
+**Answer:** 
+
+```{r}
+#Batting = Lahman::Batting
+#Master = Lahman::Master
+#Salaries = Lahman::Salaries
+#Teams <- Lahman::Teams
+
+sprintf("Number of observations in the Batting data set: %s", dim(Batting)[1])
+sprintf("Number of columns in the Batting data set: %s", dim(Batting)[2])
+sprintf("Number of observations in the Master data set: %s", dim(Master)[1])
+sprintf("Number of columns in the Master data set: %s", dim(Master)[2])
+sprintf("Number of observations in the Salaries data set: %s", dim(Salaries)[1])
+sprintf("Number of columns in the Salaries data set: %s", dim(Salaries)[2])
+sprintf("Number of observations in the Teams data set: %s", dim(Teams)[1])
+sprintf("Number of columns in the Teams data set: %s", dim(Teams)[2])
+```
+
+##### At glance, what types of columns are available in the `Lahman` baseball data sets? For example, the `Batting` data contains a lot of information on players batting performance like: games played, at bats, runs, etc.
+
+**Answer:** 
+
+```{r}
+head(Batting, 5)
+```
+
+```{r}
+head(Master, 5)
+```
+
+```{r}
+head(Salaries, 5)
+```
+
+```{r}
+head(Teams, 5)
+```
+
+# Create a Relational Table
+Now that we have examined a few of the `Lahman` baseball data sets, lets create a relational table using the following data sets: `Lahman::Batting`, `Lahman::Master`, `Lahman::Salaries`. 
+
+##### We used the `playerID` key to match the data sets on. Looking at the output, are there any other keys that we could use within the three data sets?
+
+**Answer:** 
+```{r}
+dm1 <- dm_from_data_frames(list(
+  Batting = Lahman::Batting,
+  Master = Lahman::Master,
+  Salaries = Lahman::Salaries
+)) %>%
+  dm_set_key("Batting", c("playerID", "yearID", "stint")) %>%
+  dm_set_key("Master", "playerID") %>%
+  dm_set_key("Salaries", c("yearID", "teamID", "playerID")) %>%
+  dm_add_references(
+    Batting$playerID == Master$playerID,
+    Salaries$playerID == Master$playerID
+  )
+
+dm_create_graph(dm1, rankdir = "LR", columnArrows = TRUE) %>%
+  dm_render_graph()
+```
+
+# Data Analysis: Tables and Plots
+Lets now explore the data and try to answer the following questions using the analysis below. *Many of the questions are based on the following exercise: https://rpubs.com/williamsurles/293454
+
+##### How many players did not receive a salary? What `playerID` is associated with the player that played the most games with not receiving a salary?
+
+**Answer:** 
+
+#### How many players played and did not play? Does it appear that playing time contributed to not being paid?(Support your conclusion with the data...)
+
+**Answer:** 
+
+```{r}
+players <- Master %>% distinct(playerID, nameFirst, nameLast)
+sprintf("Number of players that did not receive a salary: %s", nrow(players))
+```
+
+```{r}
+salaryTotalNumberGames <- salaryTotalNumberGames <- players %>% 
+  # Find all players who do not appear in Salaries
+  anti_join(Salaries, by = "playerID") %>% 
+  # Join them to Appearances
+  left_join(Appearances, by = "playerID") %>% 
+  # Calculate total_games for each player
+  group_by(playerID) %>%
+  summarise(total_games = sum(G_all, na.rm = T)) %>%
+  # Arrange in descending order by total_games
+  arrange(desc(total_games))
+head(salaryTotalNumberGames, 5)
+```
+
+```{r}
+TotalNumberAtBats <- players %>%
+  # Find nonsalaried players
+  anti_join(Salaries, by = "playerID") %>% 
+  # Join Batting to the nonsalaried players
+  left_join(Batting, by = "playerID") %>% 
+  # Group by player
+  group_by(playerID) %>% 
+  # Sum at-bats for each player
+  summarize(total_at_bat = sum(AB, na.rm = T)) %>% 
+  # Arrange in descending order
+  arrange(desc(total_at_bat))
+
+sprintf("Percent of players with no at bats: %s", round(
+  count(filter(TotalNumberAtBats, total_at_bat == 0))/count(TotalNumberAtBats), digits = 3))
+sprintf("Percent of players with one or more at bats: %s", round(
+  count(filter(TotalNumberAtBats, total_at_bat != 0))/count(TotalNumberAtBats), digits = 3))
+sprintf("Percent of players with a hundred or more at bats: %s", round(
+  count(filter(TotalNumberAtBats, total_at_bat >= 100))/count(TotalNumberAtBats), digits = 3))
+```
+
+
